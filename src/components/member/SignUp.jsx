@@ -1,15 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, UserPlus, CheckCircle2, User, Mail, Lock, Sparkles, Award } from 'lucide-react';
+import { ArrowRight, UserPlus, CheckCircle2, User, Mail, Lock, Sparkles, Award, Camera } from 'lucide-react';
 import Button from '../common/Button';
 import InputField from '../common/InputField';
 import AuthLayout from './AuthLayout';
 
 function SignUp({ onLogin }) {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // Step 1: Info, Step 2: Preferences, Step 3: Success
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', favoriteBread: '시그니처 우유 식빵', alertAllergy: false });
+  const fileInputRef = useRef(null);
+  const [step, setStep] = useState(1); // Step 1: Info & Profile Pic, Step 2: Preferences, Step 3: Success
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    email: '', 
+    password: '', 
+    favoriteBread: '시그니처 우유 식빵', 
+    alertAllergy: false 
+  });
+  const [profileImage, setProfileImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleImageClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setErrors(prev => ({ ...prev, profileImage: '이미지 파일만 업로드할 수 있습니다.' }));
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors(prev => ({ ...prev, profileImage: '파일 크기는 최대 5MB까지 가능합니다.' }));
+        return;
+      }
+
+      setProfileImage(file);
+      setErrors(prev => ({ ...prev, profileImage: null }));
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleNextStep = (e) => {
     e.preventDefault();
@@ -27,16 +64,50 @@ function SignUp({ onLogin }) {
     }
   };
 
-  const handleSignUpComplete = () => {
-    onLogin(formData.name, formData.email);
-    setStep(3);
+  const handleSignUpComplete = async () => {
+    setErrors(prev => ({ ...prev, submit: null }));
+    setSubmitting(true);
+
+    const submitData = new FormData();
+    submitData.append('username', formData.email);
+    submitData.append('email', formData.email);
+    submitData.append('password', formData.password);
+    submitData.append('passwordCheck', formData.password);
+    submitData.append('name', formData.name);
+
+    if (profileImage) {
+      submitData.append('profileImage', profileImage);
+    }
+
+    try {
+      const response = await fetch('http://localhost:8080/member/join', {
+        method: 'POST',
+        body: submitData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || '회원가입에 실패했습니다.');
+      }
+
+      const result = await response.json();
+      console.log('SignUp Successful:', result);
+
+      onLogin(formData.name, formData.email);
+      setStep(3);
+    } catch (err) {
+      console.error('SignUp Error:', err);
+      setErrors(prev => ({ ...prev, submit: err.message || '서버 통신 오류가 발생했습니다.' }));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <AuthLayout 
       title={step === 3 ? "가입 완료!" : "아틀리에 회원가입"} 
       description={
-        step === 1 ? "기본 계정 정보를 등록해주세요." :
+        step === 1 ? "프로필 이미지와 기본 정보를 등록해주세요." :
         step === 2 ? "고객님께 딱 맞는 빵 추천을 제공하기 위한 맞춤 질문입니다." :
         "밀아틀리에 정식 회원이 되신 것을 진심으로 환영합니다!"
       }
@@ -51,6 +122,75 @@ function SignUp({ onLogin }) {
 
       {step === 1 && (
         <form onSubmit={handleNextStep} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Circular Profile Image Picker */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <div 
+              onClick={handleImageClick}
+              style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--primary-gold-light)',
+                border: '2px dashed var(--primary-gold)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                position: 'relative',
+                overflow: 'hidden',
+                transition: 'var(--transition-normal)',
+                boxShadow: 'var(--shadow-sm)'
+              }}
+              className="profile-picker-container"
+            >
+              {imagePreview ? (
+                <img 
+                  src={imagePreview} 
+                  alt="Profile Preview" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--secondary-brown)' }}>
+                  <Camera size={24} />
+                  <span style={{ fontSize: '11px', marginTop: '4px', fontWeight: '700' }}>사진 등록</span>
+                </div>
+              )}
+              {/* Overlay camera icon on hover */}
+              {imagePreview && (
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(60, 42, 33, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    opacity: 0,
+                    transition: 'var(--transition-fast)'
+                  }}
+                  className="profile-picker-overlay"
+                >
+                  <Camera size={20} />
+                </div>
+              )}
+            </div>
+            
+            <input 
+              type="file" 
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              accept="image/*"
+              style={{ display: 'none' }}
+            />
+            
+            <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>프로필 사진 (선택 사항)</span>
+            {errors.profileImage && <span style={{ color: 'var(--accent-rust)', fontSize: '12px' }}>{errors.profileImage}</span>}
+          </div>
+
           <InputField
             label="이름"
             type="text"
@@ -120,10 +260,17 @@ function SignUp({ onLogin }) {
             </label>
           </div>
 
+          {/* 에러 메시지 표시 */}
+          {errors.submit && (
+            <div style={{ color: 'var(--accent-rust)', fontSize: '13px', fontWeight: '600', padding: '10px', backgroundColor: 'rgba(210, 93, 56, 0.05)', borderRadius: 'var(--radius-md)', border: '1px solid var(--accent-rust)', textAlign: 'center' }}>
+              {errors.submit}
+            </div>
+          )}
+
           {/* Reusable, Mobile-First stacked buttons overriding to row layout on desktop */}
           <div className="signup-btn-group">
-            <Button variant="outline" onClick={() => setStep(1)}>이전 단계</Button>
-            <Button variant="primary" onClick={handleSignUpComplete} icon={<UserPlus size={16} />}>회원가입 완료</Button>
+            <Button variant="outline" onClick={() => setStep(1)} disabled={submitting}>이전 단계</Button>
+            <Button variant="primary" onClick={handleSignUpComplete} loading={submitting} icon={<UserPlus size={16} />}>회원가입 완료</Button>
           </div>
         </div>
       )}
@@ -155,6 +302,16 @@ function SignUp({ onLogin }) {
         
         .signup-btn-group button {
           width: 100%;
+        }
+
+        /* Hover animation for profile image picker */
+        .profile-picker-container:hover {
+          border-color: var(--primary-gold-hover) !important;
+          transform: scale(1.03);
+        }
+
+        .profile-picker-container:hover .profile-picker-overlay {
+          opacity: 1 !important;
         }
 
         /* Desktop Layout: Side-by-side row arrangement */

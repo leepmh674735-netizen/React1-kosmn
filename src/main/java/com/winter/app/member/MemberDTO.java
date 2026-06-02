@@ -33,6 +33,9 @@ public class MemberDTO implements UserDetails {
     @Column
     private String email;
 
+    @OneToOne(mappedBy = "member", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private MemberProfile memberProfile;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return Collections.emptyList();
