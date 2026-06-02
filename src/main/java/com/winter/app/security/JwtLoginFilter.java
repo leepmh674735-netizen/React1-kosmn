@@ -67,8 +67,8 @@ public class JwtLoginFilter extends UsernamePasswordAuthenticationFilter {
         System.out.println("=== [JwtLoginFilter] 로그인 성공 ===");
 
         // 1) 토큰 생성
-        String accessToken = jwtTokenManger.makeToken(authResult);
-        String refreshToken = jwtTokenManger.makeRefreshToken(authResult);
+        String accessToken = jwtTokenManger.createAccessToken(authResult);
+        String refreshToken = jwtTokenManger.createRefreshToken(authResult);
 
         // 2) Access Token은 전역 표준대로 'Authorization' 헤더에 담기
         response.addHeader("Authorization", "Bearer " + accessToken);

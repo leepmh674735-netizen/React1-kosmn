@@ -19,9 +19,6 @@ public class SecurityConfig {
     @Autowired
     private JwtTokenManger jwtTokenManger;
 
-    @Autowired
-    private
-
     // AuthenticationManager를 가져오기 위한 설정 주입
     private final AuthenticationConfiguration authenticationConfiguration;
 
@@ -57,13 +54,12 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // 5. HTTP Basic 인증 활성화
-                .httpBasic(Customizer.withDefaults()); h.disable())
+                // 5. HTTP Basic 인증 비활성화
+                .httpBasic(httpBasic -> httpBasic.disable());
 
         // 6. JWT 로그인 커스텀 필터 등록
-        // 필터를 생성할 때 authenticationManager를 주입해주어야 아이디/패스워드 검증이 가능합니다.
-        JwtLoginFilter jwtLoginFilter = new JwtLoginFilter();
-        jwtLoginFilter.setAuthenticationManager(authenticationConfiguration()authenticationConfiguration));
+        // 필터를 생성할 때 authenticationManager와 jwtTokenManger를 주입해주어야 합니다.
+        JwtLoginFilter jwtLoginFilter = new JwtLoginFilter(authenticationManager(authenticationConfiguration), jwtTokenManger);
 
         // 기존 UsernamePasswordAuthenticationFilter 위치에 커스텀 JWT 로그인 필터를 대체하여 넣거나 그 앞에 둡니다.
         http.addFilterAt(jwtLoginFilter, UsernamePasswordAuthenticationFilter.class);

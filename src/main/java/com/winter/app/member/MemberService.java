@@ -1,8 +1,9 @@
 package com.winter.app.member;
 
-import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @AllArgsConstructor
@@ -10,24 +11,20 @@ import org.springframework.stereotype.Service;
 public class MemberService {
 
     private final MemberRepository memberRepository;
-
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
-    public Member join(MemberDTO memberDTO)throws Exception {
-
+    public MemberDTO join(MemberDTO memberDTO) throws Exception {
+        if (memberDTO.getPassword() == null || memberDTO.getPasswordCheck() == null) {
+            throw new IllegalArgumentException("비밀번호 입력 값이 올바르지 않습니다.");
+        }
         if (!memberDTO.getPassword().equals(memberDTO.getPasswordCheck())){
             throw new IllegalArgumentException("비밀번호가 서로 일치 하지 않습니다.");
+        }
 
-            Member member = new Member();
+        String encodedPassword = passwordEncoder.encode(memberDTO.getPassword());
+        memberDTO.setPassword(encodedPassword);
 
-            member.setUsername(memberDTO.getUsername());
-            member.setName(memberDTO.getName());
-           member.setEmail(memberDTO.getEmail());
-
-        String encodendPassword = passwordEncoder.encode(memberDTO.getPassword());
-        member.setPassword(encodendPassword);
-
-       return memberRepository.save(member);
-   }
+        return memberRepository.save(memberDTO);
+    }
 }
