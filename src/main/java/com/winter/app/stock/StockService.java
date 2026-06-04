@@ -81,6 +81,7 @@ public class StockService {
     /**
      * 한국투자증권 실시간 현재가 조회 API 호출
      */
+    @SuppressWarnings("unchecked")
     private StockDTO fetchStockPriceFromAPI(String ticker) {
         try {
             String url = apiUrl + "/uapi/domestic-stock/v1/quotations/inquire-price?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=" + ticker;
@@ -97,13 +98,13 @@ public class StockService {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
-                Map<String, String> output = (Map<String, String>) body.get("output");
+                Map<String, Object> output = (Map<String, Object>) body.get("output");
 
                 if (output != null) {
-                    int price = Integer.parseInt(output.get("stck_prpr")); // 현재가
-                    int change = Integer.parseInt(output.get("prdy_vrss")); // 전일대비 변동액
-                    double rate = Double.parseDouble(output.get("prdy_ctrt")); // 전일대비 변동률
-                    String signCode = output.get("prdy_vrss_sign"); // 대비 기호 코드
+                    int price = parseToInt(output.get("stck_prpr"), 0); // 현재가
+                    int change = parseToInt(output.get("prdy_vrss"), 0); // 전일대비 변동액
+                    double rate = parseToDouble(output.get("prdy_ctrt"), 0.0); // 전일대비 변동률
+                    String signCode = Objects.toString(output.get("prdy_vrss_sign"), "3"); // 대비 기호 코드
 
                     String sign = "-";
                     if ("1".equals(signCode) || "2".equals(signCode)) {
@@ -143,7 +144,9 @@ public class StockService {
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> resBody = response.getBody();
                 this.accessToken = (String) resBody.get("access_token");
-                int expiresIn = (int) resBody.get("expires_in"); // 보통 86400초 (24시간)
+                
+                // 만료 시간 안전하게 추출 (Integer, Long, String 포맷 유연 대응)
+                int expiresIn = parseToInt(resBody.get("expires_in"), 86400); // 기본값 24시간
                 
                 // 만료시간 안전마진 1시간 차감
                 this.tokenExpiryTime = System.currentTimeMillis() + ((long) (expiresIn - 3600) * 1000);
@@ -152,6 +155,27 @@ public class StockService {
         } catch (Exception e) {
             log.error("Access Token 발급 중 예외 발생: {}", e.getMessage());
             throw new RuntimeException("API 인증 토큰 발급 실패", e);
+        }
+    }
+
+    // --- 타입 안전 도우미 메소드 ---
+    private int parseToInt(Object obj, int defaultValue) {
+        if (obj == null) return defaultValue;
+        if (obj instanceof Number) return ((Number) obj).intValue();
+        try {
+            return Integer.parseInt(obj.toString().trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    private double parseToDouble(Object obj, double defaultValue) {
+        if (obj == null) return defaultValue;
+        if (obj instanceof Number) return ((Number) obj).doubleValue();
+        try {
+            return Double.parseDouble(obj.toString().trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
         }
     }
 
