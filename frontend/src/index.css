@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-tossGray-light text-tossGray-title;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Pretendard Var", Pretendard, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* 마이크로 애니메이션 클래스 */
+.transition-toss {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+.hover-toss-card {
+  @apply transition-toss hover:-translate-y-0.5 hover:shadow-toss-hover;
+}
+
+.active-toss-click {
+  @apply active:scale-95;
+}

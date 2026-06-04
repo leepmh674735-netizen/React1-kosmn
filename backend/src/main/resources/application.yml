@@ -1,0 +1,27 @@
+spring:
+  profiles:
+    active: dev # 기본적으로 개발(dev) 프로파일(H2) 활성화
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/stockdb}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+# JWT 설정
+jwt:
+  secret: ${JWT_SECRET:tossStockSecretKeyMustBeLongEnoughToValidateJWTTokensProperly}
+  expiration: 86400000 # 24시간
+
+# 한국투자증권 API 설정
+kis:
+  api:
+    url: ${KIS_API_URL:https://openapivts.koreainvestment.com:29443} # 기본값 모의투자 도메인
+    app-key: ${KIS_APP_KEY:}
+    app-secret: ${KIS_APP_SECRET:}
