@@ -12,11 +12,28 @@ function Home() {
   const [stockLoading, setStockLoading] = React.useState(true);
   const [stockError, setStockError] = React.useState(null);
   const [lastUpdated, setLastUpdated] = React.useState('');
+  const [activeTab, setActiveTab] = React.useState('realtime'); // 'realtime', 'undervalued', 'search'
+  
+  const [categories, setCategories] = React.useState([]);
+  const [searchKeyword, setSearchKeyword] = React.useState('');
 
-  const fetchStockPrices = React.useCallback(async () => {
+  const fetchStockPrices = React.useCallback(async (tab) => {
+    setStockLoading(true);
     try {
-      const response = await fetch('http://localhost:8080/api/stock/realtime');
-      if (!response.ok) throw new Error('시세 정보를 가져오지 못했습니다.');
+      const endpoint = tab === 'realtime' ? 'realtime' : 'undervalued';
+      const response = await fetch(`http://localhost:8080/api/stock/${endpoint}`);
+      if (!response.ok) {
+        let errorMessage = '시세 정보를 가져오지 못했습니다.';
+        try {
+          const errBody = await response.json();
+          if (errBody && errBody.message) {
+            errorMessage = errBody.message;
+          }
+        } catch (e) {
+          // ignore
+        }
+        throw new Error(errorMessage);
+      }
       const data = await response.json();
       setStocks(data);
       setLastUpdated(new Date().toLocaleTimeString('ko-KR'));
@@ -24,16 +41,67 @@ function Home() {
     } catch (err) {
       console.warn('주식 API 호출 실패, 백엔드 서버 상태를 확인하세요.', err);
       setStockError(err.message);
+      setStocks([]);
+    } finally {
+      setStockLoading(false);
+    }
+  }, []);
+
+  const fetchCategories = React.useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/stock/search/categories');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (err) {
+      console.warn('카테고리 목록 조회 실패', err);
+    }
+  }, []);
+
+  const handleSearch = React.useCallback(async (keyword) => {
+    if (!keyword || keyword.trim() === '') return;
+    setStockLoading(true);
+    setStockError(null);
+    try {
+      const response = await fetch(`http://localhost:8080/api/stock/search?keyword=${encodeURIComponent(keyword)}`);
+      if (!response.ok) {
+        let errorMessage = '검색 결과를 가져오지 못했습니다.';
+        try {
+          const errBody = await response.json();
+          if (errBody && errBody.message) {
+            errorMessage = errBody.message;
+          }
+        } catch (e) {
+          // ignore
+        }
+        throw new Error(errorMessage);
+      }
+      const data = await response.json();
+      setStocks(data);
+      setStockError(null);
+    } catch (err) {
+      console.warn('검색 API 호출 실패', err);
+      setStockError(err.message);
+      setStocks([]);
     } finally {
       setStockLoading(false);
     }
   }, []);
 
   React.useEffect(() => {
-    fetchStockPrices();
-    const interval = setInterval(fetchStockPrices, 8000);
+    if (activeTab === 'search') {
+      if (categories.length === 0) {
+        fetchCategories();
+      }
+      return; // Do not poll on search tab
+    }
+    fetchStockPrices(activeTab);
+    const interval = setInterval(() => {
+      fetchStockPrices(activeTab);
+    }, 8000);
     return () => clearInterval(interval);
-  }, [fetchStockPrices]);
+  }, [fetchStockPrices, activeTab, categories.length, fetchCategories]);
 
   // Mock Best Sellers for homepage display
   const bestSellers = [
@@ -149,23 +217,184 @@ function Home() {
       {/* 1.5 Real-time Stock Ticker Widget */}
       <section style={{ backgroundColor: 'var(--bg-cream)', padding: '24px 0', borderBottom: '1px solid rgba(217, 160, 91, 0.15)' }}>
         <div className="container">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="pulse-indicator"></span>
-              <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--bg-coffee)' }}>실시간 증시 시세 (KRW)</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => { setActiveTab('realtime'); fetchStockPrices('realtime'); }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid ' + (activeTab === 'realtime' ? 'var(--secondary-brown)' : 'rgba(60, 42, 33, 0.15)'),
+                  backgroundColor: activeTab === 'realtime' ? 'var(--bg-coffee)' : '#ffffff',
+                  color: activeTab === 'realtime' ? '#ffffff' : 'var(--bg-coffee)',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                🔥 실시간 거래량 상위 10
+              </button>
+              <button 
+                onClick={() => { setActiveTab('undervalued'); fetchStockPrices('undervalued'); }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid ' + (activeTab === 'undervalued' ? 'var(--secondary-brown)' : 'rgba(60, 42, 33, 0.15)'),
+                  backgroundColor: activeTab === 'undervalued' ? 'var(--bg-coffee)' : '#ffffff',
+                  color: activeTab === 'undervalued' ? '#ffffff' : 'var(--bg-coffee)',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                📊 가치분석 저평가 우량주 10
+              </button>
+              <button 
+                onClick={() => { setActiveTab('search'); setStocks([]); setSearchKeyword(''); }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid ' + (activeTab === 'search' ? 'var(--secondary-brown)' : 'rgba(60, 42, 33, 0.15)'),
+                  backgroundColor: activeTab === 'search' ? 'var(--bg-coffee)' : '#ffffff',
+                  color: activeTab === 'search' ? '#ffffff' : 'var(--bg-coffee)',
+                  fontWeight: '800',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                🔍 테마/섹터 검색
+              </button>
             </div>
-            {lastUpdated && (
+            {lastUpdated && activeTab !== 'search' && (
               <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>마지막 갱신: {lastUpdated} (8초 주기)</span>
             )}
           </div>
 
-          {stockLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', color: 'var(--gray-500)', fontSize: '13px' }}>
-              시세 정보를 실시간으로 연결하는 중입니다...
+          {activeTab === 'search' && (
+            <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <form 
+                onSubmit={(e) => { e.preventDefault(); handleSearch(searchKeyword); }}
+                style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '600px' }}
+              >
+                <input 
+                  type="text" 
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  placeholder="테마 또는 업종을 입력하세요 (예: 반도체, 이차전지, 바이오, 방산, ai 등)"
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid rgba(60, 42, 33, 0.2)',
+                    fontSize: '14px',
+                    outline: 'none',
+                    backgroundColor: '#ffffff',
+                    color: 'var(--bg-coffee)'
+                  }}
+                />
+                <button 
+                  type="submit"
+                  style={{
+                    padding: '10px 24px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--primary-gold)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: '800',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-fast)',
+                    boxShadow: 'var(--shadow-sm)'
+                  }}
+                  onMouseOver={(e) => e.target.style.backgroundColor = 'var(--secondary-brown)'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = 'var(--primary-gold)'}
+                >
+                  검색
+                </button>
+              </form>
+
+              {categories.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '4px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--bg-coffee)', fontWeight: '800', marginRight: '4px' }}>추천 태그:</span>
+                  {categories.map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => { setSearchKeyword(cat); handleSearch(cat); }}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        border: '1px solid rgba(217, 160, 91, 0.25)',
+                        backgroundColor: searchKeyword === cat ? 'var(--primary-gold-light)' : '#ffffff',
+                        color: 'var(--bg-coffee)',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)'
+                      }}
+                      onMouseOver={(e) => {
+                        if (searchKeyword !== cat) {
+                          e.target.style.borderColor = 'var(--primary-gold)';
+                          e.target.style.backgroundColor = 'rgba(217, 160, 91, 0.05)';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (searchKeyword !== cat) {
+                          e.target.style.borderColor = 'rgba(217, 160, 91, 0.25)';
+                          e.target.style.backgroundColor = '#ffffff';
+                        }
+                      }}
+                    >
+                      #{cat}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          ) : stockError && stocks.length === 0 ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', color: 'var(--accent-rust)', fontSize: '13px', fontWeight: '600' }}>
-              오류: {stockError} (백엔드 서버 상태를 확인해 주세요)
+          )}
+
+          {stockLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '20px 0', color: 'var(--gray-500)', fontSize: '13px' }}>
+              주식 시세 정보를 외부 API를 통해 직접 가져오는 중입니다...
+            </div>
+          ) : stockError ? (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column',
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '20px', 
+              color: 'var(--accent-rust)', 
+              backgroundColor: 'rgba(210, 93, 56, 0.05)',
+              border: '1px dashed rgba(210, 93, 56, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '14px', 
+              fontWeight: '600',
+              gap: '6px',
+              width: '100%'
+            }}>
+              <span>⚠️ 정보를 불러올 수 없습니다.</span>
+              <span style={{ fontSize: '12px', color: 'var(--gray-500)', fontWeight: 'normal' }}>상세 정보: {stockError}</span>
+            </div>
+          ) : activeTab === 'search' && stocks.length === 0 ? (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column',
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '40px 20px', 
+              color: 'var(--bg-coffee)', 
+              backgroundColor: 'rgba(60, 42, 33, 0.02)',
+              border: '1px dashed rgba(60, 42, 33, 0.1)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px', 
+              width: '100%',
+              gap: '8px'
+            }}>
+              <span style={{ fontWeight: '800', fontSize: '15px' }}>🔍 원하는 테마나 섹터를 검색해 보세요.</span>
+              <span style={{ color: 'var(--gray-500)', fontSize: '12px' }}>위의 추천 태그(#반도체, #이차전지 등)를 클릭하면 실시간 종목 시세를 바로 확인할 수 있습니다.</span>
             </div>
           ) : (
             <div className="stock-grid-container">
@@ -208,6 +437,18 @@ function Home() {
                         <span style={{ fontSize: '12px' }}>({isDown ? '-' : ''}{stock.changeRate}%)</span>
                       </div>
                     </div>
+
+                    {/* 가치 분석 지표가 있을 경우 함께 노출 */}
+                    {stock.per !== null && stock.pbr !== null && (
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed rgba(60, 42, 33, 0.08)' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--bg-coffee)', backgroundColor: 'var(--primary-gold-light)', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                          PER: {stock.per}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--bg-coffee)', backgroundColor: 'var(--primary-gold-light)', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                          PBR: {stock.pbr}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
