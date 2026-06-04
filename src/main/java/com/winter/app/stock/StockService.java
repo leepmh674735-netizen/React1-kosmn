@@ -86,14 +86,20 @@ public class StockService {
     @SuppressWarnings("unchecked")
     private StockDTO fetchStockPriceFromAPI(String ticker) {
         try {
-            String url = apiUrl + "/uapi/domestic-stock/v1/quotations/inquire-price?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=" + ticker;
+            // 비상장 주식(K-OTC)과 일반 상장 주식의 호출 규격 분기 처리
+            boolean isOtc = "302390".equals(ticker);
+            String path = isOtc ? "/uapi/otc/v1/quotations/inquire-price" : "/uapi/domestic-stock/v1/quotations/inquire-price";
+            String trId = isOtc ? "FBFM10100000" : "FBDT00100000";
+            String divCode = isOtc ? "O" : "J"; // K-OTC는 'O', 상장주식은 'J'
+
+            String url = apiUrl + path + "?FID_COND_MRKT_DIV_CODE=" + divCode + "&FID_INPUT_ISCD=" + ticker;
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Content-Type", "application/json");
             headers.set("authorization", "Bearer " + accessToken);
             headers.set("appkey", appKey);
             headers.set("appsecret", appSecret);
-            headers.set("tr_id", "FBDT00100000"); // 주식현재가 시세 tr_id
+            headers.set("tr_id", trId);
 
             HttpEntity<Void> entity = new HttpEntity<>(headers);
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
