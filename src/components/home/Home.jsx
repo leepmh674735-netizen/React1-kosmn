@@ -8,6 +8,33 @@ import heroImage from '../../assets/hero_bread_cover.png';
 function Home() {
   const navigate = useNavigate();
 
+  const [stocks, setStocks] = React.useState([]);
+  const [stockLoading, setStockLoading] = React.useState(true);
+  const [stockError, setStockError] = React.useState(null);
+  const [lastUpdated, setLastUpdated] = React.useState('');
+
+  const fetchStockPrices = React.useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/stock/realtime');
+      if (!response.ok) throw new Error('시세 정보를 가져오지 못했습니다.');
+      const data = await response.json();
+      setStocks(data);
+      setLastUpdated(new Date().toLocaleTimeString('ko-KR'));
+      setStockError(null);
+    } catch (err) {
+      console.warn('주식 API 호출 실패, 백엔드 서버 상태를 확인하세요.', err);
+      setStockError(err.message);
+    } finally {
+      setStockLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchStockPrices();
+    const interval = setInterval(fetchStockPrices, 8000);
+    return () => clearInterval(interval);
+  }, [fetchStockPrices]);
+
   // Mock Best Sellers for homepage display
   const bestSellers = [
     {
@@ -117,6 +144,124 @@ function Home() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* 1.5 Real-time Stock Ticker Widget */}
+      <section style={{ backgroundColor: 'var(--bg-cream)', padding: '24px 0', borderBottom: '1px solid rgba(217, 160, 91, 0.15)' }}>
+        <div className="container">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="pulse-indicator"></span>
+              <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--bg-coffee)' }}>실시간 증시 시세 (KRW)</span>
+            </div>
+            {lastUpdated && (
+              <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>마지막 갱신: {lastUpdated} (8초 주기)</span>
+            )}
+          </div>
+
+          {stockLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', color: 'var(--gray-500)', fontSize: '13px' }}>
+              시세 정보를 실시간으로 연결하는 중입니다...
+            </div>
+          ) : stockError && stocks.length === 0 ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0', color: 'var(--accent-rust)', fontSize: '13px', fontWeight: '600' }}>
+              오류: {stockError} (백엔드 서버 상태를 확인해 주세요)
+            </div>
+          ) : (
+            <div className="stock-grid-container">
+              {stocks.map(stock => {
+                const isUp = stock.sign === '▲';
+                const isDown = stock.sign === '▼';
+                const arrowColor = isUp ? 'var(--accent-rust)' : isDown ? '#3182ce' : 'var(--gray-600)';
+                const cardBg = isUp ? 'rgba(210, 93, 56, 0.03)' : isDown ? 'rgba(49, 130, 206, 0.03)' : '#ffffff';
+                const cardBorder = isUp ? 'rgba(210, 93, 56, 0.15)' : isDown ? 'rgba(49, 130, 206, 0.15)' : 'rgba(60, 42, 33, 0.06)';
+
+                return (
+                  <div 
+                    key={stock.ticker}
+                    style={{
+                      backgroundColor: cardBg,
+                      border: `1px solid ${cardBorder}`,
+                      borderRadius: 'var(--radius-md)',
+                      padding: '16px 20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      boxShadow: 'var(--shadow-sm)',
+                      transition: 'transform var(--transition-fast)',
+                      cursor: 'default'
+                    }}
+                    className="stock-item-card"
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--bg-coffee)' }}>{stock.companyName}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--gray-500)', fontWeight: '600' }}>{stock.ticker}</span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '4px' }}>
+                      <span style={{ fontSize: '18px', fontWeight: '900', color: 'var(--bg-coffee)', fontFamily: 'monospace' }}>
+                        {stock.currentPrice.toLocaleString()}원
+                      </span>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '800', color: arrowColor }}>
+                        <span>{stock.sign} {stock.changePrice.toLocaleString()}</span>
+                        <span style={{ fontSize: '12px' }}>({isDown ? '-' : ''}{stock.changeRate}%)</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <style>{`
+          .stock-grid-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+          }
+
+          @media (min-width: 768px) {
+            .stock-grid-container {
+              grid-template-columns: repeat(4, 1fr);
+            }
+          }
+
+          .stock-item-card {
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+          }
+
+          .stock-item-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md) !important;
+          }
+
+          .pulse-indicator {
+            width: 8px;
+            height: 8px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: pulse 1.6s infinite;
+          }
+
+          @keyframes pulse {
+            0% {
+              transform: scale(0.95);
+              box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            }
+            70% {
+              transform: scale(1);
+              box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+            }
+            100% {
+              transform: scale(0.95);
+              box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+            }
+          }
+        `}</style>
       </section>
 
       {/* 2. Core Philosophy & Value Proposition */}
