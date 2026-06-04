@@ -224,7 +224,13 @@ function Home() {
 
           @media (min-width: 768px) {
             .stock-grid-container {
-              grid-template-columns: repeat(4, 1fr);
+              grid-template-columns: repeat(3, 1fr);
+            }
+          }
+
+          @media (min-width: 1024px) {
+            .stock-grid-container {
+              grid-template-columns: repeat(5, 1fr);
             }
           }
 

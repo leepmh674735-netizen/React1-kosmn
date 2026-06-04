@@ -41,11 +41,13 @@ public class StockService {
         BASE_PRICES.put("000660", 188500); // SK하이닉스
         BASE_PRICES.put("005380", 252000); // 현대차
         BASE_PRICES.put("035420", 176500); // NAVER
+        BASE_PRICES.put("302390", 42500);  // 비바리퍼블리카(토스)
 
         COMPANY_NAMES.put("005930", "삼성전자");
         COMPANY_NAMES.put("000660", "SK하이닉스");
         COMPANY_NAMES.put("005380", "현대차");
         COMPANY_NAMES.put("035420", "NAVER");
+        COMPANY_NAMES.put("302390", "비바리퍼블리카(토스)");
     }
 
     public List<StockDTO> getRealtimePrices() {
